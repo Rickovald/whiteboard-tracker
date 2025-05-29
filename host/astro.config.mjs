@@ -1,18 +1,29 @@
-// @ts-check
 import { defineConfig } from 'astro/config';
-import solidJs from '@astrojs/solid-js';
 import svelte from '@astrojs/svelte';
-
-import tailwindcss from '@tailwindcss/vite';
+import react from '@astrojs/react';
+import solidJs from '@astrojs/solid-js';
 
 // https://astro.build/config
 export default defineConfig({
-  integrations: [
-    solidJs(),
-    svelte(),
-  ],
-
+  integrations: [svelte(), react(), solidJs()],
+  output: 'static',
+  site: 'https://whiteboard-tracker.netlify.app',
+  server: {
+    port: 3000,
+    host: true
+  },
   vite: {
-    plugins: [tailwindcss()]
+    server: {
+      proxy: {
+        '/api': {
+          target: 'http://localhost:5000',
+          changeOrigin: true
+        },
+        '/ws': {
+          target: 'ws://localhost:5000',
+          ws: true
+        }
+      }
+    }
   }
 });
