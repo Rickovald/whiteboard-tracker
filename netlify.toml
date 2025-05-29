@@ -1,0 +1,24 @@
+[build]
+  command = "npm run build"
+  publish = "host/dist"
+  functions = "netlify/functions"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/drawer/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/ws/*"
+  to = "/.netlify/functions/drawer-ws/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
