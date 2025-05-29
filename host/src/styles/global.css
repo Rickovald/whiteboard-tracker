@@ -1,0 +1,88 @@
+@import "tailwindcss";
+
+* {
+    box-sizing: border-box;
+}
+
+@layer components {
+  .nav-link {
+    @apply whitespace-nowrap px-2 py-1 text-zinc-300  
+           transition-colors duration-200 ease-in-out
+           hover:text-blue-400;
+  }
+  .h2 {
+    @apply text-5xl font-bold mb-6;
+  }
+  .input {
+    @apply w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring focus:border-blue-300 cursor-pointer bg-stone-100
+  }
+  .tool {
+    @apply w-9 h-9 cursor-pointer mx-1 my-0.5 rounded-full relative flex items-center justify-center transition-all duration-200
+  }
+  
+  .tool img, .tool svg {
+    @apply w-6 h-6 transition-all duration-200
+  }
+  
+  .tool img {
+    @apply opacity-80;
+    filter: invert(40%) sepia(40%) saturate(800%) hue-rotate(225deg) brightness(100%) contrast(90%);
+  }
+  
+  .tool:hover {
+    @apply bg-purple-300;
+  }
+  
+  .tool:hover img {
+    @apply opacity-100;
+    filter: brightness(0) saturate(0);
+  }
+  
+  .tool-active {
+    @apply bg-purple-300;
+  }
+  
+  .tool-active img {
+    @apply opacity-100;
+    filter: invert(13%) sepia(6%) saturate(533%) hue-rotate(182deg) brightness(95%) contrast(91%);
+  }
+
+  .tool-с {
+    @apply w-6 h-6 rounded-full mx-1 cursor-pointer
+  }
+  
+  .color-btn {
+    @apply transition-all duration-100 ease-in-out w-6 h-6 rounded-full mx-1 cursor-pointer border-2 border-zinc-400
+  }
+  .color-btn:hover {
+    @apply transition-all duration-100 border-2 border-zinc-400 outline outline-5 outline-zinc-700
+  }
+  .color-btn-active {
+    @apply border-2 border-zinc-400 outline outline-5 outline-zinc-700
+  }
+  
+  .current-colors {
+    @apply w-8 h-8 rounded-full mx-2 border-2 border-black relative
+  }
+  
+  .current-colors::after {
+    content: "";
+    @apply absolute w-4 h-4 rounded-full top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2
+  }
+}
+.color-transparent {
+    background-image: linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%),
+                      linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%);
+    background-size: 10px 10px;
+    background-position: 0 0, 5px 5px;
+    background-color: white;
+    border: 1px solid #999;
+}
+@layer utilities {
+  .tr-fast {
+    @apply transition-all duration-300 ease-in-out;
+  }
+  .tr-mid {
+    @apply transition-all duration-500 ease-in-out;
+  }
+}

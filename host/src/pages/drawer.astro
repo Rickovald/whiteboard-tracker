@@ -1,0 +1,34 @@
+---
+import Svelte from "../drawer/index.svelte";
+import Header from "../components/header.astro";
+
+// Получаем ID доски из URL, если есть
+const boardId = Astro.url.searchParams.get('id');
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="generator" content={Astro.generator} />
+    <title>Whiteboard - {boardId ? `Доска ${boardId}` : 'Новая доска'}</title>
+    <script>
+      // Проверяем URL при загрузке страницы
+      document.addEventListener('DOMContentLoaded', () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const boardId = urlParams.get('id');
+        
+        // Если нет ID доски в URL, создаем новую доску
+        if (!boardId) {
+          // Создание новой доски будет выполнено в компоненте Sidebar
+          console.log('Нет ID доски в URL, будет создана новая доска');
+        }
+      });
+    </script>
+  </head>
+  <body>
+    <Header />
+    <Svelte client:load />
+  </body>
+</html>
