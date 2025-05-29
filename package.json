@@ -7,18 +7,14 @@
     "svs/drawer"
   ],
   "scripts": {
-    "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:drawer\"",
-    "dev:frontend": "cd host && npm run dev",
-    "dev:drawer": "cd svs/drawer && npm run dev",
-    "build": "npm run build:frontend && npm run build:drawer",
-    "build:frontend": "cd host && npm run build",
-    "build:drawer": "cd svs/drawer && npm run build",
-    "start": "concurrently \"npm run start:frontend\" \"npm run start:drawer\"",
-    "start:frontend": "cd host && npm run preview",
-    "start:drawer": "cd svs/drawer && npm run start",
-    "postinstall": "cd svs/drawer && npm install"
+    "dev": "concurrently \"yarn workspace host dev\" \"yarn workspace drawer-service start\"",
+    "build": "yarn workspace host build && yarn workspace drawer-service build",
+    "start": "concurrently \"yarn workspace host preview\" \"yarn workspace drawer-service start\"",
+    "preview": "yarn build && yarn start",
+    "postinstall": "cd svs/drawer && yarn install"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
-  }
+  },
+  "packageManager": "yarn@4.9.1"
 }

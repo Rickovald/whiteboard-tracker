@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "nodemon index.js",
     "start": "node index.js",
-    "build": "mkdir -p dist && cp -r index.js files boards.json package.json dist/"
+    "build": "echo \"No build needed for drawer service\"",
+    "preview": "node index.js"
   },
   "keywords": [],
   "author": "",

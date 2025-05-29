@@ -346,6 +346,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"drawer-service@workspace:.":
+  version: 0.0.0-use.local
+  resolution: "drawer-service@workspace:."
+  dependencies:
+    cors: "npm:^2.8.5"
+    express: "npm:^5.1.0"
+    express-ws: "npm:^5.0.2"
+    nodemon: "npm:^3.1.10"
+  languageName: unknown
+  linkType: soft
+
 "dunder-proto@npm:^1.0.1":
   version: 1.0.1
   resolution: "dunder-proto@npm:1.0.1"
@@ -1329,17 +1340,6 @@ __metadata:
   checksum: 10c0/30e2ed1dbff1984836cfd0c65abf5d3f3f83bcd696c99d2d3c97edbd4e2a3ff4d3f87108a7d713640d290a7b6fe6c15ddcbc61165ab2eaad48ea8d3b52c7f913
   languageName: node
   linkType: hard
-
-"server@workspace:.":
-  version: 0.0.0-use.local
-  resolution: "server@workspace:."
-  dependencies:
-    cors: "npm:^2.8.5"
-    express: "npm:^5.1.0"
-    express-ws: "npm:^5.0.2"
-    nodemon: "npm:^3.1.10"
-  languageName: unknown
-  linkType: soft
 
 "setprototypeof@npm:1.2.0":
   version: 1.2.0
