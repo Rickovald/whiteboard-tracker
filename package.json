@@ -2,18 +2,19 @@
   "name": "whiteboard-tracker",
   "version": "1.0.0",
   "private": true,
+  "workspaces": [
+    "host",
+    "svs/drawer"
+  ],
   "scripts": {
-    "dev": "concurrently \"cd host && npm run dev\" \"cd svs/drawer && npm run dev\"",
-    "build": "cd host && npm run build",
-    "start": "concurrently \"cd host && npm run preview\" \"cd svs/drawer && npm run start\"",
-    "preview": "npm run build && npm run start"
+    "dev": "concurrently \"yarn workspace host dev\" \"yarn workspace drawer-service start\"",
+    "build": "yarn workspace host build && yarn workspace drawer-service build",
+    "start": "concurrently \"yarn workspace host preview\" \"yarn workspace drawer-service start\"",
+    "preview": "yarn build && yarn start",
+    "postinstall": "cd svs/drawer && yarn install"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
   },
-  "dependencies": {
-    "express": "^4.18.2",
-    "serverless-http": "^3.2.0",
-    "cors": "^2.8.5"
-  }
+  "packageManager": "yarn@4.9.1"
 }
