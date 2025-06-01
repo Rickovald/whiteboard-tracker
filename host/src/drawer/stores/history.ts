@@ -144,7 +144,7 @@ export const saveInitialState = () => {
   
   if (!canvasElement) return;
   
-  const ctx = canvasElement.getContext('2d');
+  const ctx = canvasElement.getContext('2d', { willReadFrequently: true });
   if (!ctx) return;
   
   const initialState = ctx.getImageData(0, 0, canvasElement.width, canvasElement.height);

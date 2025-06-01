@@ -14,7 +14,6 @@
     import { Pencil } from "../tools/pencil";
     import { Curve } from "../tools/curve";
     import { Polygon } from "../tools/polygon";
-    import { Select } from "../tools/select";
     import Colors from "./colors.svelte";
     import { historyStore as history, saveToHistory } from "../stores/history";
     
@@ -87,9 +86,9 @@
         setTool('paint_bucket', PaintBucket);
     }
     
-    function setTextTool() {
-        setTool('text', PaintBucket);
-    }
+    // function setTextTool() {
+    //     setTool('text', PaintBucket);
+    // }
     
     function setAirbrushTool() {
         setTool('airbrush', Airbrush);
@@ -105,10 +104,6 @@
     
     function setPolygonTool() {
         setTool('polygon', Polygon);
-    }
-    
-    function setSelectTool() {
-        setTool('select', Select);
     }
     
     function importImage() {
@@ -255,13 +250,13 @@
             >
                 <img src="/assets/img/polygon.svg" alt="Многоугольник">
             </button>
-            <button 
+            <!-- <button 
                 aria-label="Выбрать текст"
                 class="tool {activeTool === 'text' ? 'tool-active' : ''}"
                 on:click={setTextTool}
             >
                 <img src="/assets/img/text.svg" alt="Текст">
-            </button>
+            </button> -->
         </div>
     </div>
     
@@ -289,20 +284,6 @@
                 on:click={setEyedropperTool}
             >
                 <img src="/assets/img/eyedropper.svg" alt="Пипетка">
-            </button>
-            <button 
-                aria-label="Выбрать выделение"
-                class="tool {activeTool === 'select' ? 'tool-active' : ''}"
-                on:click={setSelectTool}
-            >
-                <img src="/assets/img/select.svg" alt="Выделение">
-            </button>
-            <button 
-                aria-label="Выбрать произвольное выделение"
-                class="tool {activeTool === 'freeform_select' ? 'tool-active' : ''}"
-                on:click={setBrushTool}
-            >
-                <img src="/assets/img/freeform_select.svg" alt="Произвольное выделение">
             </button>
         </div>
         <div class="flex flex-wrap mt-1">

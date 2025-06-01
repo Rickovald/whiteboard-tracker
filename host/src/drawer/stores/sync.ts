@@ -52,12 +52,34 @@ export const initializeSync = () => {
   }
 
   isReconnecting = true;
+  syncStatus.set('initializing');
+  
+  // Предварительно загружаем состояние из локального хранилища, если оно есть
+  const cachedState = localStorage.getItem(`whiteboard_state_${roomId}`);
+  if (cachedState) {
+    try {
+      updateCanvasFromSync(cachedState);
+      console.log('Загружено кэшированное состояние доски');
+    } catch (e) {
+      console.error('Ошибка загрузки кэшированного состояния:', e);
+    }
+  }
   
   try {
     // Используем фиксированный порт 5000 для WebSocket соединения
     socket = new WebSocket(`ws://localhost:5000/whiteboard/${roomId}`);
 
+    // Устанавливаем таймаут для соединения
+    const connectionTimeout = setTimeout(() => {
+      if (socket && socket.readyState !== WebSocket.OPEN) {
+        console.warn('Таймаут соединения WebSocket');
+        socket.close();
+        handleReconnect();
+      }
+    }, 5000);
+
     socket.onopen = () => {
+      clearTimeout(connectionTimeout);
       console.log('WebSocket соединение установлено');
       syncStatus.set('connected');
       connectionAttempts = 0;
@@ -80,7 +102,7 @@ export const initializeSync = () => {
           clearInterval(heartbeatInterval!);
           handleReconnect();
         }
-      }, 15000);
+      }, 15000) as unknown as number;
     };
 
     socket.onclose = (event) => {
@@ -136,7 +158,7 @@ const handleReconnect = () => {
   console.log(`Переподключение через ${delay}мс (попытка ${connectionAttempts})`);
   reconnectTimer = setTimeout(() => {
     initializeSync();
-  }, delay);
+  }, delay) as unknown as number;
 };
 
 // Запрос начального состояния доски
@@ -164,12 +186,39 @@ const updateCanvasFromSync = (imageDataUrl: string) => {
   
   if (!canvasElement) return;
   
-  const ctx = canvasElement.getContext('2d', { willReadFrequently: true });
+  // Используем утверждение типа, чтобы TypeScript знал, что canvasElement не null
+  const canvasEl = canvasElement as HTMLCanvasElement;
+  const ctx = canvasEl.getContext('2d', { willReadFrequently: true });
   if (!ctx) return;
   
   const img = new Image();
   img.onload = () => {
-    ctx.drawImage(img, 0, 0);
+    // Сохраняем текущие размеры холста
+    const { width, height } = canvasElement!;
+    
+    // Очищаем холст перед отрисовкой
+    ctx.clearRect(0, 0, width, height);
+    
+    // Проверяем, есть ли сохраненное разрешение для этой доски
+    const boardResolution = localStorage.getItem(`whiteboard_resolution_${roomId}`);
+    let originalWidth = width;
+    let originalHeight = height;
+    
+    if (boardResolution) {
+      try {
+        const resolution = JSON.parse(boardResolution);
+        originalWidth = resolution.width;
+        originalHeight = resolution.height;
+      } catch (e) {
+        console.error('Ошибка при чтении сохраненного разрешения:', e);
+      }
+    }
+    
+    // Рисуем изображение с учетом соотношения сторон
+    ctx.drawImage(img, 0, 0, width, height);
+    
+    // Сохраняем изображение в локальное хранилище для быстрой загрузки
+    localStorage.setItem(`whiteboard_state_${roomId}`, imageDataUrl);
   };
   img.src = imageDataUrl;
 };
@@ -181,8 +230,6 @@ export const sendCanvasUpdate = (force = false) => {
   // Проверяем, прошло ли достаточно времени с последнего обновления
   if (!force && now - lastUpdateTime < UPDATE_THROTTLE) return;
   
-  if (!socket || socket.readyState !== WebSocket.OPEN) return;
-  
   let canvasElement: HTMLCanvasElement | null = null;
   
   canvas.subscribe(value => {
@@ -191,24 +238,63 @@ export const sendCanvasUpdate = (force = false) => {
   
   if (!canvasElement) return;
   
+  // Используем утверждение типа для canvasElement
+  const canvasEl = canvasElement as HTMLCanvasElement;
+  
   try {
-    const imageDataUrl = canvasElement.toDataURL('image/png');
+    const imageDataUrl = canvasEl.toDataURL('image/png');
     
-    socket.send(JSON.stringify({
-      type: 'canvas_update',
-      roomId,
-      imageData: imageDataUrl,
-      timestamp: now
+    // Сохраняем текущее разрешение доски
+    localStorage.setItem(`whiteboard_resolution_${roomId}`, JSON.stringify({
+      width: canvasEl.width,
+      height: canvasEl.height
     }));
     
-    // Обновляем время последнего обновления
-    lastUpdateTime = now;
+    // Сохраняем состояние в локальное хранилище для быстрой загрузки
+    localStorage.setItem(`whiteboard_state_${roomId}`, imageDataUrl);
+    
+    // Отправляем обновление через WebSocket, если соединение открыто
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({
+        type: 'canvas_update',
+        roomId,
+        imageData: imageDataUrl,
+        resolution: {
+          width: canvasEl.width,
+          height: canvasEl.height
+        },
+        timestamp: now
+      }));
+      
+      // Обновляем время последнего обновления
+      lastUpdateTime = now;
+    } else if (force) {
+      // Если соединение закрыто, но нужно принудительное обновление,
+      // пытаемся переподключиться
+      handleReconnect();
+    }
+    
+    // Синхронизируем с другими вкладками
+    try {
+      const bc = new BroadcastChannel('whiteboard-sync');
+      bc.postMessage({
+        type: 'canvas-update',
+        id: roomId,
+        imageData: imageDataUrl,
+        timestamp: now
+      });
+      bc.close();
+    } catch (e) {
+      console.error('Ошибка синхронизации между вкладками:', e);
+    }
     
     // Сохраняем на сервере
     saveToServer(imageDataUrl);
   } catch (e) {
     console.error('Ошибка отправки обновления холста:', e);
-    handleReconnect();
+    if (socket && socket.readyState !== WebSocket.OPEN) {
+      handleReconnect();
+    }
   }
 };
 
@@ -219,6 +305,18 @@ const saveToServer = (imageDataUrl: string) => {
   // Получаем имя доски из URL или используем дефолтное
   const boardName = new URLSearchParams(window.location.search).get('name') || `Доска ${roomId.substring(0, 6)}`;
   
+  // Получаем текущее разрешение холста
+  let resolution = { width: 800, height: 600 }; // Значения по умолчанию
+  
+  canvas.subscribe(value => {
+    if (value) {
+      resolution = {
+        width: value.width,
+        height: value.height
+      };
+    }
+  })();
+  
   fetch(`http://localhost:5000/image?id=${roomId}`, {
     method: 'POST',
     headers: {
@@ -226,9 +324,25 @@ const saveToServer = (imageDataUrl: string) => {
     },
     body: JSON.stringify({
       img: imageDataUrl,
-      name: boardName
+      name: boardName,
+      resolution: resolution
     })
-  }).catch(err => console.error('Ошибка сохранения:', err));
+  })
+  .then(response => {
+    if (!response.ok) {
+      throw new Error('Ошибка сохранения на сервере');
+    }
+    return response.json();
+  })
+  .then(() => {
+    console.log('Доска успешно сохранена на сервере');
+  })
+  .catch((err: unknown) => {
+    console.error('Ошибка сохранения:', err);
+    // Сохраняем локально в случае ошибки
+    localStorage.setItem(`whiteboard_state_${roomId}`, imageDataUrl);
+    localStorage.setItem(`whiteboard_resolution_${roomId}`, JSON.stringify(resolution));
+  });
 };
 
 // Статус синхронизации

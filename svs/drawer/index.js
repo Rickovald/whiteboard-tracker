@@ -105,6 +105,9 @@ app.ws('/whiteboard/:id', (ws, req) => {
     }
     roomConnections.get(roomId).add(ws);
     
+    // Получаем метаданные доски
+    const boardData = getBoardData(roomId);
+    
     console.log(`Пользователь подключился к доске ${roomId}. Всего подключений: ${roomConnections.get(roomId).size}`);
     
     // Отправляем запрос на получение текущего состояния доски
@@ -175,6 +178,9 @@ app.ws('/whiteboard/:id', (ws, req) => {
                 // Автоматически сохраняем изображение на диск
                 saveImageToDisk(roomId, data.imageData);
             } else if (data.type === 'initial_state_request') {
+                // Получаем метаданные доски
+                const boardData = getBoardData(roomId);
+                
                 // Отправляем последнее известное состояние доски
                 const cachedState = boardsCache.get(roomId);
                 if (cachedState) {
@@ -182,7 +188,8 @@ app.ws('/whiteboard/:id', (ws, req) => {
                         ws.send(JSON.stringify({
                             type: 'canvas_update',
                             roomId,
-                            imageData: cachedState
+                            imageData: cachedState,
+                            metadata: boardData || {}
                         }));
                     } catch (e) {
                         console.error('Ошибка отправки кэшированного состояния:', e);
@@ -197,7 +204,8 @@ app.ws('/whiteboard/:id', (ws, req) => {
                             ws.send(JSON.stringify({
                                 type: 'canvas_update',
                                 roomId,
-                                imageData
+                                imageData,
+                                metadata: boardData || {}
                             }));
                             
                             // Сохраняем в кэш
@@ -307,12 +315,27 @@ app.post('/image', (req, res) => {
         
         // Обновляем метаданные доски
         const boardName = req.body.name || `Доска ${id.substring(0, 6)}`
+        const resolution = req.body.resolution || { width: 800, height: 600 }
+        const isNewBoard = req.body.isNewBoard || false
+        
+        // Если это новая доска, очищаем предыдущие данные
+        if (isNewBoard) {
+            console.log(`Инициализация новой доски: ${id}`);
+        }
+        
         updateBoardData(id, { 
             name: boardName,
-            updatedAt: new Date().toISOString()
+            updatedAt: new Date().toISOString(),
+            resolution: resolution,
+            createdAt: isNewBoard ? new Date().toISOString() : undefined
         })
         
-        return res.status(200).json({message: "Загружено"})
+        return res.status(200).json({
+            message: "Загружено",
+            id: id,
+            name: boardName,
+            resolution: resolution
+        })
     } catch (e) {
         console.log(e)
         return res.status(500).json('error')
@@ -324,17 +347,34 @@ app.get('/image', (req, res) => {
     try {
         const id = req.query.id;
         
+        // Получаем метаданные доски, включая разрешение
+        const boardData = getBoardData(id);
+        
         // Сначала проверяем кэш
         if (boardsCache.has(id)) {
-            return res.json(boardsCache.get(id));
+            const cachedData = boardsCache.get(id);
+            
+            // Если запрошены метаданные, возвращаем их вместе с изображением
+            if (req.query.metadata === 'true') {
+                return res.json({
+                    imageData: cachedData,
+                    metadata: boardData || {}
+                });
+            }
+            
+            return res.json(cachedData);
         }
         
         const filePath = path.resolve(__dirname, 'files', `${id}.jpg`)
         
         // Проверяем существование файла
         if (!fs.existsSync(filePath)) {
-            // Если файл не существует, возвращаем пустое изображение
-            return res.status(404).json({ error: 'Изображение не найдено' })
+            // Если файл не существует, возвращаем ошибку 404
+            return res.status(404).json({ 
+                error: 'Изображение не найдено',
+                id: id,
+                metadata: boardData || {}
+            });
         }
         
         const file = fs.readFileSync(filePath)
@@ -343,10 +383,21 @@ app.get('/image', (req, res) => {
         // Сохраняем в кэш
         boardsCache.set(id, data);
         
+        // Если запрошены метаданные, возвращаем их вместе с изображением
+        if (req.query.metadata === 'true') {
+            return res.json({
+                imageData: data,
+                metadata: boardData || {}
+            });
+        }
+        
         res.json(data)
     } catch (e) {
         console.log(e)
-        return res.status(500).json('error')
+        return res.status(500).json({
+            error: 'Ошибка при получении изображения',
+            message: e.message
+        })
     }
 })
 

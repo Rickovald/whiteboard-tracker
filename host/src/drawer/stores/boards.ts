@@ -172,7 +172,9 @@ export const sendMessage = (message: any) => {
         while (messageQueue.length > 0) {
           const queuedMessage = messageQueue.shift();
           try {
-            socket.send(JSON.stringify(queuedMessage));
+            if (socket) {
+              socket.send(JSON.stringify(queuedMessage));
+            }
           } catch (e) {
             console.error('Ошибка отправки сообщения из очереди:', e);
           }
@@ -227,10 +229,10 @@ export const fetchBoards = async () => {
         
         return boards;
       }
-    } catch (fetchError) {
+    } catch (fetchError: unknown) {
       clearTimeout(timeoutId);
       
-      if (fetchError.name === 'AbortError') {
+      if (fetchError instanceof Error && fetchError.name === 'AbortError') {
         console.warn('Запрос к серверу превысил время ожидания. Сервер не запущен?');
       } else {
         console.error('Ошибка при получении списка досок:', fetchError);
@@ -291,19 +293,42 @@ export const createBoard = (name: string = 'Новая доска') => {
     username: 'user'
   });
   
+  // Очищаем кэш предыдущей доски для новой доски
+  localStorage.removeItem(`whiteboard_state_${id}`);
+  localStorage.removeItem(`whiteboard_resolution_${id}`);
+  
   // Инициализируем пустую доску на сервере
-  initEmptyBoard(id, boardName);
+  initEmptyBoard(id, boardName, true);
   
   return id;
 };
 
 // Инициализация пустой доски на сервере
-export const initEmptyBoard = async (id: string, name: string = 'Новая доска') => {
+export const initEmptyBoard = async (id: string, name: string = 'Новая доска', forceEmpty: boolean = false) => {
   const canvasElement = document.querySelector('canvas');
   if (!canvasElement) return;
   
   try {
+    // Если нужно принудительно создать пустую доску
+    if (forceEmpty) {
+      // Получаем контекст и очищаем холст
+      const ctx = canvasElement.getContext('2d', { willReadFrequently: true });
+      if (ctx) {
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvasElement.width, canvasElement.height);
+      }
+    }
+    
     const dataUrl = canvasElement.toDataURL();
+    
+    // Сохраняем текущее разрешение
+    const resolution = {
+      width: canvasElement.width,
+      height: canvasElement.height
+    };
+    
+    // Сохраняем разрешение в localStorage
+    localStorage.setItem(`whiteboard_resolution_${id}`, JSON.stringify(resolution));
     
     await fetch(`http://localhost:5000/image?id=${id}`, {
       method: 'POST',
@@ -312,7 +337,8 @@ export const initEmptyBoard = async (id: string, name: string = 'Новая до
       },
       body: JSON.stringify({
         img: dataUrl,
-        name: name
+        name: name,
+        resolution: resolution
       })
     });
     
@@ -404,7 +430,9 @@ export const selectBoard = (id: string) => {
           id,
           username: 'user'
         });
-        socket?.removeEventListener('open', onOpenHandler);
+        if (socket) {
+          socket.removeEventListener('open', onOpenHandler);
+        }
       };
       socket.addEventListener('open', onOpenHandler);
     }
@@ -462,28 +490,116 @@ export const toggleBoardEditing = (id: string, isEditing: boolean) => {
 // Загрузка изображения доски с сервера
 export const loadBoardImage = async (id: string) => {
   try {
+    // Проверяем, есть ли кэшированное состояние для этой доски
+    const cachedState = localStorage.getItem(`whiteboard_state_${id}`);
+    const cachedResolution = localStorage.getItem(`whiteboard_resolution_${id}`);
+    
+    // Если есть кэшированное состояние, используем его для быстрой загрузки
+    if (cachedState) {
+      try {
+        const canvasElement = document.querySelector('canvas');
+        if (canvasElement) {
+          // Если есть кэшированное разрешение, применяем его
+          if (cachedResolution) {
+            try {
+              const resolution = JSON.parse(cachedResolution);
+              if (resolution.width && resolution.height) {
+                // Адаптируем размер холста под сохраненное разрешение
+                const parent = canvasElement.parentElement;
+                if (parent) {
+                  // Проверяем, мобильное ли устройство
+                  const isMobile = window.innerWidth <= 768;
+                  
+                  if (isMobile) {
+                    // На мобильных устройствах адаптируем под экран
+                    canvasElement.width = parent.clientWidth;
+                    canvasElement.height = Math.min(parent.clientHeight, parent.clientWidth * 1.5);
+                  } else {
+                    // На десктопе пытаемся сохранить оригинальное разрешение
+                    if (resolution.width <= parent.clientWidth && resolution.height <= parent.clientHeight) {
+                      canvasElement.width = resolution.width;
+                      canvasElement.height = resolution.height;
+                    } else {
+                      // Если не помещается, масштабируем с сохранением пропорций
+                      const ratio = Math.min(
+                        parent.clientWidth / resolution.width,
+                        parent.clientHeight / resolution.height
+                      );
+                      canvasElement.width = Math.floor(resolution.width * ratio);
+                      canvasElement.height = Math.floor(resolution.height * ratio);
+                    }
+                  }
+                }
+              }
+            } catch (e) {
+              console.error('Ошибка при чтении сохраненного разрешения:', e);
+            }
+          }
+          
+          const img = new Image();
+          img.onload = () => {
+            const ctx = canvasElement.getContext('2d', { willReadFrequently: true });
+            if (ctx) {
+              ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+              ctx.drawImage(img, 0, 0, canvasElement.width, canvasElement.height);
+              console.log('Загружено кэшированное состояние доски');
+            }
+          };
+          img.src = cachedState;
+        }
+      } catch (e) {
+        console.error('Ошибка загрузки кэшированного состояния:', e);
+      }
+    }
+    
     // Проверяем, запущен ли сервер
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 3000); // Таймаут 3 секунды
     
     try {
-      const response = await fetch(`http://localhost:5000/image?id=${id}`, {
+      const response = await fetch(`http://localhost:5000/image?id=${id}&metadata=true`, {
         signal: controller.signal
       });
       clearTimeout(timeoutId);
       
       if (response.ok) {
         const data = await response.json();
+        
+        // Проверяем, получили ли мы объект с метаданными или просто строку с изображением
+        let imageData = data;
+        let metadata = null;
+        
+        if (typeof data === 'object' && data.imageData) {
+          imageData = data.imageData;
+          metadata = data.metadata;
+          
+          // Если есть метаданные с разрешением, сохраняем их
+          if (metadata && metadata.resolution) {
+            localStorage.setItem(`whiteboard_resolution_${id}`, 
+              JSON.stringify(metadata.resolution));
+          }
+        }
+        
+        // Сохраняем изображение в локальное хранилище для быстрой загрузки
+        localStorage.setItem(`whiteboard_state_${id}`, imageData);
+        
         const img = new Image();
-        img.src = data;
+        img.src = imageData;
         
         img.onload = () => {
           const canvasElement = document.querySelector('canvas');
           if (canvasElement) {
-            const ctx = canvasElement.getContext('2d');
+            const ctx = canvasElement.getContext('2d', { willReadFrequently: true });
             if (ctx) {
               ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
               ctx.drawImage(img, 0, 0, canvasElement.width, canvasElement.height);
+              
+              // Синхронизируем с другими вкладками
+              broadcastToOtherTabs({
+                type: 'board-loaded',
+                id,
+                imageData
+              });
             }
           }
         };
@@ -492,27 +608,41 @@ export const loadBoardImage = async (id: string) => {
         console.log('Изображение доски не найдено, создаем пустую доску');
         initEmptyBoard(id);
       }
-    } catch (fetchError) {
+    } catch (fetchError: unknown) {
       clearTimeout(timeoutId);
       
-      if (fetchError.name === 'AbortError') {
+      if (fetchError instanceof Error && fetchError.name === 'AbortError') {
         console.warn('Запрос к серверу превысил время ожидания. Сервер не запущен?');
       } else {
         console.error('Ошибка при загрузке изображения:', fetchError);
       }
       
-      // Если сервер недоступен, создаем пустую доску локально
-      const canvasElement = document.querySelector('canvas');
-      if (canvasElement) {
-        const ctx = canvasElement.getContext('2d');
-        if (ctx) {
-          ctx.fillStyle = "#ffffff";
-          ctx.fillRect(0, 0, canvasElement.width, canvasElement.height);
+      // Если сервер недоступен и нет кэша, создаем пустую доску локально
+      if (!cachedState) {
+        const canvasElement = document.querySelector('canvas');
+        if (canvasElement) {
+          const ctx = canvasElement.getContext('2d', { willReadFrequently: true });
+          if (ctx) {
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, canvasElement.width, canvasElement.height);
+          }
         }
       }
     }
   } catch (error) {
     console.error('Ошибка загрузки изображения доски:', error);
+  }
+};
+
+// Функция для синхронизации между вкладками
+const broadcastToOtherTabs = (message: any) => {
+  try {
+    // Используем BroadcastChannel API для синхронизации между вкладками
+    const bc = new BroadcastChannel('whiteboard-sync');
+    bc.postMessage(message);
+    bc.close();
+  } catch (e) {
+    console.error('Ошибка синхронизации между вкладками:', e);
   }
 };
 
